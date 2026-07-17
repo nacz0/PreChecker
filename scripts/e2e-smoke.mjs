@@ -64,6 +64,7 @@ try {
   console.log(`Display diagnostics: ${JSON.stringify(displayDiagnostics)}`)
 
   const fixtureResults = []
+  let firstScanMainThreadLatencyMs = 0
   for (const fixture of fixtures) {
     const fixtureWindowIds = await electronApp.evaluate(
       async ({ BrowserWindow, screen }, fixturePath) => {
@@ -143,6 +144,17 @@ try {
       }
       await overlayPage.mouse.up()
 
+      if (fixture.name === 'poster-pl') {
+        const pingStartedAt = Date.now()
+        await electronApp.evaluate(() => true)
+        firstScanMainThreadLatencyMs = Date.now() - pingStartedAt
+        if (firstScanMainThreadLatencyMs > 1_500) {
+          throw new Error(
+            `Main process blocked for ${firstScanMainThreadLatencyMs} ms during first scan`
+          )
+        }
+      }
+
       await page.waitForFunction(
         () => (document.querySelector('#scan-button')).disabled === false,
         undefined,
@@ -172,6 +184,25 @@ try {
         )
       }
 
+      const markerData = await page.locator('.proof-marker').evaluateAll((markers) =>
+        markers.map((marker) => {
+          const bounds = marker.getBoundingClientRect()
+          return {
+            word: marker.getAttribute('data-marker-word'),
+            width: bounds.width,
+            height: bounds.height
+          }
+        })
+      )
+      const markedWords = markerData.map((marker) => marker.word)
+      const missingMarkers = fixture.expectedIssues.filter((word) => !markedWords.includes(word))
+      if (missingMarkers.length > 0) {
+        throw new Error(`${fixture.name}: missing image markers for ${missingMarkers.join(', ')}`)
+      }
+      if (markerData.some((marker) => marker.width <= 0 || marker.height <= 0)) {
+        throw new Error(`${fixture.name}: at least one image marker has empty bounds`)
+      }
+
       const summary = (await page.locator('#summary-title').textContent())?.trim() ?? ''
       const meta = (await page.locator('#result-meta').textContent())?.trim() ?? ''
       const screenshotPath = join(resultsDirectory, `${fixture.name}-result.png`)
@@ -180,6 +211,7 @@ try {
         name: fixture.name,
         expectedIssues: fixture.expectedIssues,
         detectedIssues,
+        markerCount: markerData.length,
         summary,
         meta,
         recognizedPreview: recognizedText.slice(0, 180),
@@ -198,6 +230,7 @@ try {
         preloadReady,
         shortcutRegistered,
         escapeCancellation: true,
+        firstScanMainThreadLatencyMs,
         displayDiagnostics,
         fixtureResults
       },

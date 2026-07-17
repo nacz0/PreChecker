@@ -123,6 +123,15 @@ kbd { margin-left: 6px; padding: 5px 8px; color: #55534d; background: rgba(255,2
 .summary-row { display: flex; justify-content: space-between; align-items: end; gap: 20px; margin-bottom: 22px; }
 .summary-row h3 { margin: 0; font-family: Georgia, serif; font-size: 30px; font-weight: 400; letter-spacing: -.025em; }
 .result-meta { color: #858179; font-size: 10px; text-align: right; }
+.proof { margin-bottom: 22px; }
+.proof-heading { display: flex; justify-content: space-between; align-items: center; margin-bottom: 9px; color: #6f6b63; font-size: 10px; }
+.proof-heading strong { color: #3d3a35; font-size: 11px; }
+.proof-canvas { position: relative; width: 100%; overflow: hidden; background: #dedbd2; border: 1px solid rgba(29,29,27,.13); border-radius: 9px; }
+.proof-canvas > img { display: block; width: 100%; height: auto; }
+.proof-markers { position: absolute; inset: 0; pointer-events: none; }
+.proof-marker { position: absolute; min-width: 8px; min-height: 8px; background: rgba(217, 67, 47, .17); border: 2px solid #d9432f; border-radius: 3px; box-shadow: 0 0 0 1px rgba(255,255,255,.8), 0 2px 8px rgba(88,25,17,.24); transition: background .15s ease, box-shadow .15s ease, transform .15s ease; }
+.proof-marker span { position: absolute; left: -2px; bottom: calc(100% + 4px); max-width: 160px; overflow: hidden; padding: 3px 6px; color: white; background: #c83d2b; border-radius: 4px; font-size: 9px; font-weight: 750; line-height: 1.1; text-overflow: ellipsis; white-space: nowrap; }
+.proof-marker.is-focused { z-index: 2; background: rgba(217,67,47,.3); box-shadow: 0 0 0 3px rgba(217,67,47,.25); transform: scale(1.03); }
 .issues { display: grid; gap: 8px; }
 .issue-card { display: flex; justify-content: space-between; align-items: center; gap: 18px; padding: 14px 15px; background: rgba(255,255,255,.65); border: 1px solid rgba(29,29,27,.1); border-radius: 9px; }
 .issue-main { display: flex; align-items: center; gap: 13px; min-width: 0; }

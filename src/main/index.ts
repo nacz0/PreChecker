@@ -7,23 +7,25 @@ import {
   stopScanner,
   type CapturedScreen
 } from './scanner'
-import { SpellChecker } from './spell-checker'
+import { SpellCheckerClient } from './spell-checker-client'
 
 const SHORTCUT = 'CommandOrControl+Shift+K'
 let mainWindow: BrowserWindow | null = null
 let selectionWindow: BrowserWindow | null = null
-let spellCheckerPromise: Promise<SpellChecker> | undefined
+let spellCheckerClient: SpellCheckerClient | undefined
 let scanInProgress = false
 
-function getSpellChecker(): Promise<SpellChecker> {
-  if (!spellCheckerPromise) {
-    spellCheckerPromise = Promise.resolve().then(async () => {
-      const checker = new SpellChecker(join(app.getPath('userData'), 'custom-words.json'))
-      await checker.load()
-      return checker
-    })
+function ensureSpellChecker(): SpellCheckerClient {
+  if (!spellCheckerClient) {
+    spellCheckerClient = new SpellCheckerClient(join(app.getPath('userData'), 'custom-words.json'))
   }
-  return spellCheckerPromise
+  return spellCheckerClient
+}
+
+async function getSpellChecker(): Promise<SpellCheckerClient> {
+  const checker = ensureSpellChecker()
+  await checker.ready()
+  return checker
 }
 
 function loadRendererPage(window: BrowserWindow, page: 'index.html' | 'overlay.html'): void {
@@ -193,6 +195,9 @@ function requestScan(): void {
 }
 
 app.whenReady().then(() => {
+  void ensureSpellChecker().ready().catch((error) => {
+    console.error('Failed to warm up spell checker:', error)
+  })
   ipcMain.handle('scan-screen', (_event, source: 'button' | 'shortcut' = 'button') =>
     scanWithRegionSelection(source)
   )
@@ -217,4 +222,5 @@ app.on('window-all-closed', () => {
 app.on('will-quit', () => {
   globalShortcut.unregisterAll()
   void stopScanner()
+  void spellCheckerClient?.stop()
 })

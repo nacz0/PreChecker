@@ -8,8 +8,13 @@ import {
 } from 'electron'
 import { join } from 'node:path'
 import { createWorker, OEM, PSM, type Worker } from 'tesseract.js'
-import type { ScanProgress, ScanResult, SelectionRect } from '../shared/types'
-import { SpellChecker } from './spell-checker'
+import type {
+  ScanProgress,
+  ScanResult,
+  SelectionRect,
+  SpellingIssue,
+  TextOccurrence
+} from '../shared/types'
 
 let workerPromise: Promise<Worker> | undefined
 
@@ -19,6 +24,49 @@ export type CapturedScreen = {
   displayWidth: number
   displayHeight: number
   screenName: string
+}
+
+type SpellCheckingService = {
+  check(text: string): Promise<SpellingIssue[]>
+}
+
+const OCR_TOKEN_PATTERN = /\p{L}+(?:['’\-]\p{L}+)*/gu
+
+function normalizeOcrTokens(text: string): string[] {
+  return (text.match(OCR_TOKEN_PATTERN) ?? []).map((word) =>
+    word.normalize('NFC').replaceAll('’', "'").toLocaleLowerCase('pl')
+  )
+}
+
+function addOcrOccurrences(
+  issues: SpellingIssue[],
+  blocks: Tesseract.Block[] | null
+): SpellingIssue[] {
+  const issuesByWord = new Map(issues.map((issue) => [issue.normalized, issue]))
+  for (const issue of issues) issue.occurrences = []
+
+  for (const block of blocks ?? []) {
+    for (const paragraph of block.paragraphs) {
+      for (const line of paragraph.lines) {
+        for (const word of line.words) {
+          for (const token of normalizeOcrTokens(word.text)) {
+            const issue = issuesByWord.get(token)
+            if (!issue) continue
+            const occurrence: TextOccurrence = {
+              x: word.bbox.x0,
+              y: word.bbox.y0,
+              width: word.bbox.x1 - word.bbox.x0,
+              height: word.bbox.y1 - word.bbox.y0,
+              confidence: word.confidence
+            }
+            issue.occurrences?.push(occurrence)
+          }
+        }
+      }
+    }
+  }
+
+  return issues
 }
 
 function sendProgress(progress: ScanProgress): void {
@@ -80,7 +128,7 @@ export async function captureActiveScreen(): Promise<CapturedScreen> {
 export async function scanCapturedRegion(
   captured: CapturedScreen,
   selection: SelectionRect,
-  getSpellChecker: () => Promise<SpellChecker>
+  getSpellChecker: () => Promise<SpellCheckingService>
 ): Promise<ScanResult> {
   const startedAt = performance.now()
   const imageSize = captured.image.getSize()
@@ -95,14 +143,16 @@ export async function scanCapturedRegion(
   crop.width = Math.min(crop.width, imageSize.width - crop.x)
   crop.height = Math.min(crop.height, imageSize.height - crop.y)
 
-  const screenshot = captured.image.crop(crop).toPNG()
+  const croppedImage = captured.image.crop(crop)
+  const croppedSize = croppedImage.getSize()
+  const screenshot = croppedImage.toPNG()
   if (screenshot.length === 0) throw new Error('Zaznaczony obszar jest pusty.')
 
   sendProgress({ status: 'Rozpoznawanie tekstu', progress: 0.05 })
   const [worker, spellChecker] = await Promise.all([getWorker(), getSpellChecker()])
-  const recognition = await worker.recognize(screenshot)
+  const recognition = await worker.recognize(screenshot, {}, { blocks: true })
   const text = recognition.data.text.trim()
-  const issues = spellChecker.check(text)
+  const issues = addOcrOccurrences(await spellChecker.check(text), recognition.data.blocks)
 
   sendProgress({ status: 'Gotowe', progress: 1 })
   return {
@@ -110,7 +160,12 @@ export async function scanCapturedRegion(
     issues,
     confidence: recognition.data.confidence,
     durationMs: Math.round(performance.now() - startedAt),
-    screenName: captured.screenName
+    screenName: captured.screenName,
+    preview: {
+      imageDataUrl: `data:image/jpeg;base64,${croppedImage.toJPEG(90).toString('base64')}`,
+      width: croppedSize.width,
+      height: croppedSize.height
+    }
   }
 }
 

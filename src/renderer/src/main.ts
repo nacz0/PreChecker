@@ -52,6 +52,16 @@ app.innerHTML = `
         </div>
         <div class="result-meta" id="result-meta"></div>
       </div>
+      <div class="proof">
+        <div class="proof-heading">
+          <strong>Miejsca wymagające uwagi</strong>
+          <span id="proof-count"></span>
+        </div>
+        <div class="proof-canvas" id="proof-canvas">
+          <img id="proof-image" alt="Zaznaczony fragment projektu" />
+          <div class="proof-markers" id="proof-markers" aria-hidden="true"></div>
+        </div>
+      </div>
       <div class="issues" id="issues"></div>
       <details class="recognized-text">
         <summary>Tekst rozpoznany przez OCR</summary>
@@ -79,6 +89,9 @@ const summaryTitle = document.querySelector<HTMLHeadingElement>('#summary-title'
 const resultMeta = document.querySelector<HTMLDivElement>('#result-meta')!
 const recognizedText = document.querySelector<HTMLPreElement>('#recognized-text')!
 const shortcut = document.querySelector<HTMLElement>('#shortcut')!
+const proofImage = document.querySelector<HTMLImageElement>('#proof-image')!
+const proofMarkers = document.querySelector<HTMLDivElement>('#proof-markers')!
+const proofCount = document.querySelector<HTMLSpanElement>('#proof-count')!
 
 let scanning = false
 let lastResult: ScanResult | undefined
@@ -99,13 +112,23 @@ function issueSummary(count: number): string {
   return `${count} podejrzanych słów`
 }
 
+function markerSummary(count: number): string {
+  if (count === 1) return '1 oznaczone miejsce'
+  const lastDigit = count % 10
+  const lastTwoDigits = count % 100
+  if (lastDigit >= 2 && lastDigit <= 4 && (lastTwoDigits < 12 || lastTwoDigits > 14)) {
+    return `${count} oznaczone miejsca`
+  }
+  return `${count} oznaczonych miejsc`
+}
+
 function issueCard(issue: SpellingIssue): string {
   const suggestions = issue.suggestions.length
     ? issue.suggestions.map((suggestion) => `<span class="suggestion">${escapeHtml(suggestion)}</span>`).join('')
     : '<span class="no-suggestion">Brak pewnej sugestii</span>'
 
   return `
-    <article class="issue-card" data-word="${escapeHtml(issue.word)}">
+    <article class="issue-card" data-word="${escapeHtml(issue.word)}" data-normalized="${escapeHtml(issue.normalized)}">
       <div class="issue-main">
         <span class="warning-mark" aria-hidden="true">!</span>
         <div>
@@ -121,12 +144,34 @@ function issueCard(issue: SpellingIssue): string {
   `
 }
 
+function renderProof(result: ScanResult): void {
+  proofImage.src = result.preview.imageDataUrl
+  const markers = result.issues.flatMap((issue) =>
+    (issue.occurrences ?? []).map((occurrence, index) => {
+      const left = (occurrence.x / result.preview.width) * 100
+      const top = (occurrence.y / result.preview.height) * 100
+      const width = (occurrence.width / result.preview.width) * 100
+      const height = (occurrence.height / result.preview.height) * 100
+      return `
+        <div
+          class="proof-marker"
+          data-marker-word="${escapeHtml(issue.normalized)}"
+          style="left:${left}%;top:${top}%;width:${width}%;height:${height}%"
+        ><span>${escapeHtml(issue.word)}${index > 0 ? ` ${index + 1}` : ''}</span></div>
+      `
+    })
+  )
+  proofMarkers.innerHTML = markers.join('')
+  proofCount.textContent = markerSummary(markers.length)
+}
+
 function renderResult(result: ScanResult): void {
   lastResult = result
   emptyState.hidden = true
   results.hidden = false
   recognizedText.textContent = result.text || '(OCR nie rozpoznał tekstu)'
   resultMeta.textContent = `${result.screenName} · ${Math.round(result.confidence)}% OCR · ${(result.durationMs / 1000).toFixed(1)} s`
+  renderProof(result)
 
   if (!result.text) {
     summaryTitle.textContent = 'Nie wykryto tekstu'
@@ -176,6 +221,10 @@ issuesContainer.addEventListener('click', async (event) => {
   const word = target.dataset.addWord
   if (!word) return
   await window.prechecker.addToDictionary(word)
+  const normalized = target.closest<HTMLElement>('.issue-card')?.dataset.normalized
+  if (normalized) {
+    proofMarkers.querySelectorAll(`[data-marker-word="${CSS.escape(normalized)}"]`).forEach((marker) => marker.remove())
+  }
   target.closest('.issue-card')?.remove()
 
   const remaining = issuesContainer.querySelectorAll('.issue-card').length
@@ -185,6 +234,21 @@ issuesContainer.addEventListener('click', async (event) => {
   } else {
     summaryTitle.textContent = issueSummary(remaining)
   }
+})
+
+issuesContainer.addEventListener('pointerover', (event) => {
+  const card = (event.target as HTMLElement).closest<HTMLElement>('.issue-card')
+  const normalized = card?.dataset.normalized
+  if (!normalized) return
+  proofMarkers.querySelectorAll(`[data-marker-word="${CSS.escape(normalized)}"]`).forEach((marker) => {
+    marker.classList.add('is-focused')
+  })
+})
+
+issuesContainer.addEventListener('pointerout', (event) => {
+  const card = (event.target as HTMLElement).closest<HTMLElement>('.issue-card')
+  if (card?.contains(event.relatedTarget as Node | null)) return
+  proofMarkers.querySelectorAll('.is-focused').forEach((marker) => marker.classList.remove('is-focused'))
 })
 
 window.prechecker.onScanRequested(() => void runScan('shortcut'))

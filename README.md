@@ -12,6 +12,8 @@ Lokalna aplikacja desktopowa wykrywająca możliwe literówki w tekście widoczn
 6. Hunspell porównuje słowa z polskim i angielskim słownikiem.
 7. Aplikacja pokazuje podejrzane słowa, sugestie i pozwala dodać nazwy własne do prywatnego słownika.
 
+Wynik zawiera również podgląd zaznaczonego fragmentu. Każde wystąpienie podejrzanego słowa jest oznaczone w miejscu zwróconym przez OCR. Najechanie na kartę błędu wyróżnia odpowiadające jej ramki.
+
 Zrzuty ekranu są przetwarzane w pamięci i nie są zapisywane ani wysyłane do sieci.
 
 ## Uruchomienie
@@ -21,7 +23,7 @@ npm install
 npm run dev
 ```
 
-Pierwsze skanowanie trwa dłużej, ponieważ aplikacja inicjalizuje lokalne słowniki i silnik OCR. Kolejne skany są znacznie szybsze.
+Pierwsze skanowanie trwa dłużej, ponieważ aplikacja inicjalizuje silnik OCR. Słowniki są rozgrzewane w osobnym wątku, dlatego okno pozostaje responsywne. Kolejne skany są znacznie szybsze.
 
 ## Testy
 
@@ -40,7 +42,7 @@ Kontrolne grafiki znajdują się w [`tests/fixtures`](./tests/fixtures):
 - `poster-en.svg`: `Recieve`, `avalable`, `Adress`,
 - `poster-mixed.svg`: `ŚWIERZO`, `COLECTION`, `desing`.
 
-W aktualnych testach Windows wszystkie 9 błędów zostało rozpoznanych. Pewność OCR wyniosła 77–94% (zależnie od dodatkowych elementów systemowych widocznych przy krawędzi ekranu), a kolejne skany trwały około 1,4–2,8 sekundy.
+W aktualnych testach Windows wszystkie 9 błędów zostało rozpoznanych i oznaczonych 9 ramkami. Pierwszy skan z inicjalizacją OCR trwał około 9 sekund, a kolejne około 1,5–3,2 sekundy. Podczas pierwszego skanu główny proces odpowiedział w teście w 9 ms, więc interfejs nie był blokowany.
 
 ## macOS
 

@@ -3,6 +3,21 @@ export type SpellingIssue = {
   normalized: string
   count: number
   suggestions: string[]
+  occurrences?: TextOccurrence[]
+}
+
+export type TextOccurrence = {
+  x: number
+  y: number
+  width: number
+  height: number
+  confidence: number
+}
+
+export type ScanPreview = {
+  imageDataUrl: string
+  width: number
+  height: number
 }
 
 export type ScanResult = {
@@ -11,6 +26,7 @@ export type ScanResult = {
   confidence: number
   durationMs: number
   screenName: string
+  preview: ScanPreview
 }
 
 export type ScanProgress = {
