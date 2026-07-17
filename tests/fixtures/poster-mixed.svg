@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+  <rect width="1600" height="900" fill="#e9ff70"/>
+  <rect x="820" width="780" height="900" fill="#ff6b9c"/>
+  <path d="M680 0 L1010 0 L855 900 L525 900Z" fill="#ffffff" opacity="0.94"/>
+  <text x="90" y="115" font-family="Arial, sans-serif" font-size="28" font-weight="800" letter-spacing="8" fill="#171717">STUDIO FORMA / DROP 07</text>
+  <text x="80" y="330" font-family="Arial, sans-serif" font-size="145" font-weight="900" letter-spacing="-8" fill="#171717">ŚWIERZO</text>
+  <text x="80" y="465" font-family="Arial, sans-serif" font-size="118" font-weight="900" letter-spacing="-7" fill="#171717">I MODNIE</text>
+  <text x="885" y="315" font-family="Arial, sans-serif" font-size="90" font-weight="900" letter-spacing="-4" fill="#171717">NEW</text>
+  <text x="885" y="410" font-family="Arial, sans-serif" font-size="90" font-weight="900" letter-spacing="-4" fill="#171717">COLECTION</text>
+  <text x="885" y="540" font-family="Arial, sans-serif" font-size="44" font-weight="700" fill="#171717">Modern desing.</text>
+  <text x="885" y="600" font-family="Arial, sans-serif" font-size="44" font-weight="700" fill="#171717">Odważny kolor.</text>
+  <rect x="80" y="700" width="1220" height="100" rx="50" fill="#171717"/>
+  <text x="690" y="765" text-anchor="middle" font-family="Arial, sans-serif" font-size="41" font-weight="700" fill="#ffffff">Warszawa · online · worldwide shipping</text>
+</svg>

@@ -1,0 +1,35 @@
+{
+  "name": "prechecker",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local spelling checker for text visible on screen",
+  "main": "./out/main/index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "test:e2e": "node scripts/e2e-smoke.mjs",
+    "preview": "electron-vite preview",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "postinstall": "node scripts/prepare-ocr-data.mjs"
+  },
+  "dependencies": {
+    "@tesseract.js-data/eng": "^1.0.0",
+    "@tesseract.js-data/pol": "^1.0.0",
+    "dictionary-en": "^4.0.0",
+    "dictionary-pl": "^2.0.0",
+    "nspell": "^2.1.5",
+    "tesseract.js": "^7.0.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.61.1",
+    "@types/node": "^24.0.0",
+    "@types/nspell": "^2.1.6",
+    "electron": "^43.1.1",
+    "electron-vite": "^5.0.0",
+    "typescript": "^5.8.0",
+    "vite": "^7.0.0",
+    "vitest": "^4.1.10"
+  }
+}

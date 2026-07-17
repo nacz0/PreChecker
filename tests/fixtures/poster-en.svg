@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+  <rect width="1600" height="900" fill="#111827"/>
+  <rect x="65" y="65" width="1470" height="770" rx="38" fill="none" stroke="#f9d44a" stroke-width="5"/>
+  <circle cx="1260" cy="350" r="260" fill="#7657ff"/>
+  <circle cx="1410" cy="615" r="170" fill="#37d6c0"/>
+  <text x="115" y="135" font-family="Arial, sans-serif" font-size="29" font-weight="700" letter-spacing="9" fill="#37d6c0">CREATIVE COMMUNITY PRESENTS</text>
+  <text x="105" y="325" font-family="Arial, sans-serif" font-size="122" font-weight="900" letter-spacing="-5" fill="#ffffff">THE DESIGN</text>
+  <text x="105" y="455" font-family="Arial, sans-serif" font-size="122" font-weight="900" letter-spacing="-5" fill="#f9d44a">WEEKEND</text>
+  <text x="115" y="565" font-family="Arial, sans-serif" font-size="52" font-weight="700" fill="#ffffff">Recieve a free pass</text>
+  <text x="115" y="645" font-family="Arial, sans-serif" font-size="39" font-weight="500" fill="#dce3ef">Limited seats avalable</text>
+  <rect x="105" y="720" width="930" height="75" rx="18" fill="#ffffff"/>
+  <text x="140" y="770" font-family="Arial, sans-serif" font-size="34" font-weight="700" fill="#111827">Adress: 18 Green Street · Saturday, 10 AM</text>
+</svg>
