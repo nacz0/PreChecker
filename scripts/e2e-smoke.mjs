@@ -5,6 +5,12 @@ import process from 'node:process'
 
 const projectRoot = process.cwd()
 const resultsDirectory = join(projectRoot, '.test-results')
+const packagedPathArgument = process.argv.find((argument) => argument.startsWith('--packaged-path='))
+const packaged = process.argv.includes('--packaged') || Boolean(packagedPathArgument)
+const profileMemory = process.argv.includes('--profile-memory')
+const packagedExecutable = packagedPathArgument
+  ? packagedPathArgument.slice('--packaged-path='.length)
+  : join(projectRoot, 'release', 'win-unpacked', 'PreChecker.exe')
 await mkdir(resultsDirectory, { recursive: true })
 
 const fixtures = [
@@ -26,7 +32,7 @@ const fixtures = [
 ]
 
 const electronApp = await electron.launch({
-  args: ['.'],
+  ...(packaged ? { executablePath: packagedExecutable, args: [] } : { args: ['.'] }),
   cwd: projectRoot,
   env: {
     ...process.env,
@@ -37,6 +43,28 @@ const electronApp = await electron.launch({
 try {
   const page = await electronApp.firstWindow()
   await page.waitForLoadState('domcontentloaded')
+
+  const memorySnapshots = []
+  const captureMemory = async (label) => {
+    if (!profileMemory) return
+    const snapshot = await electronApp.evaluate(({ app }, snapshotLabel) => {
+      const processes = app.getAppMetrics().map((metric) => ({
+        pid: metric.pid,
+        type: metric.type,
+        privateMb: Math.round((metric.memory.privateBytes / 1024) * 10) / 10,
+        workingSetMb: Math.round((metric.memory.workingSetSize / 1024) * 10) / 10
+      }))
+      return {
+        label: snapshotLabel,
+        totalPrivateMb: Math.round(processes.reduce((sum, item) => sum + item.privateMb, 0) * 10) / 10,
+        totalWorkingSetMb: Math.round(processes.reduce((sum, item) => sum + item.workingSetMb, 0) * 10) / 10,
+        processes
+      }
+    }, label)
+    memorySnapshots.push(snapshot)
+  }
+
+  await captureMemory('startup')
 
   const preloadReady = await page.evaluate(() => typeof window.prechecker?.scanScreen === 'function')
   if (!preloadReady) throw new Error('Preload API was not exposed to the renderer')
@@ -271,17 +299,28 @@ try {
         for (const windowId of windowIds) BrowserWindow.fromId(windowId)?.close()
       }, fixtureWindowIds)
     }
+    await page.waitForTimeout(1000)
+    await captureMemory(`after-${fixture.name}`)
+  }
+
+  if (profileMemory) {
+    await page.waitForTimeout(12_000)
+    await captureMemory('after-ocr-idle')
+    await page.waitForTimeout(23_000)
+    await captureMemory('after-all-idle')
   }
 
   console.log(
     JSON.stringify(
       {
+        packaged,
         preloadReady,
         shortcutRegistered,
         menuBarHidden,
         escapeCancellation: true,
         firstScanMainThreadLatencyMs,
         displayDiagnostics,
+        ...(profileMemory ? { memorySnapshots } : {}),
         fixtureResults
       },
       null,

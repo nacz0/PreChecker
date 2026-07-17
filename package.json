@@ -8,7 +8,13 @@
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",
+    "dist": "npm run build && electron-builder",
+    "dist:dir": "npm run build && electron-builder --dir",
+    "dist:win": "npm run build && electron-builder --win nsis --x64",
+    "dist:mac": "npm run build && electron-builder --mac dmg",
     "test:e2e": "node scripts/e2e-smoke.mjs",
+    "test:memory": "node scripts/e2e-smoke.mjs --allow-shortcut-conflict --profile-memory",
+    "test:release:win": "node scripts/e2e-smoke.mjs --packaged --allow-shortcut-conflict",
     "preview": "electron-vite preview",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
@@ -27,9 +33,62 @@
     "@types/node": "^24.0.0",
     "@types/nspell": "^2.1.6",
     "electron": "^43.1.1",
+    "electron-builder": "^26.15.3",
     "electron-vite": "^5.0.0",
     "typescript": "^5.8.0",
     "vite": "^7.0.0",
     "vitest": "^4.1.10"
+  },
+  "build": {
+    "appId": "com.prechecker.app",
+    "productName": "PreChecker",
+    "asar": true,
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "out/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "resources/tessdata",
+        "to": "tessdata",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "${productName}-Setup-${version}-${arch}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "PreChecker"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ],
+      "category": "public.app-category.productivity",
+      "artifactName": "${productName}-${version}-${arch}.${ext}"
+    }
   }
 }
