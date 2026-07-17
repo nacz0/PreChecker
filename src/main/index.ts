@@ -47,6 +47,7 @@ function createWindow(showOnReady = true): BrowserWindow {
     minHeight: 560,
     show: false,
     backgroundColor: '#f4f2ec',
+    autoHideMenuBar: process.platform !== 'darwin',
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
     webPreferences: {
       preload: join(__dirname, '../preload/index.cjs'),
@@ -56,6 +57,8 @@ function createWindow(showOnReady = true): BrowserWindow {
     }
   })
   mainWindow = window
+
+  if (process.platform !== 'darwin') window.setMenu(null)
 
   window.once('ready-to-show', () => {
     if (showOnReady) window.show()

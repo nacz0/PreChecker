@@ -44,7 +44,23 @@ try {
   const shortcutRegistered = await electronApp.evaluate(({ globalShortcut }) =>
     globalShortcut.isRegistered('CommandOrControl+Shift+K')
   )
-  if (!shortcutRegistered) throw new Error('Global shortcut was not registered')
+  const allowShortcutConflict =
+    process.env.PRECHECKER_E2E_ALLOW_SHORTCUT_CONFLICT === '1' ||
+    process.argv.includes('--allow-shortcut-conflict')
+  if (!shortcutRegistered && !allowShortcutConflict) {
+    throw new Error('Global shortcut was not registered')
+  }
+  if (!shortcutRegistered) {
+    console.warn('Global shortcut is occupied by another running application instance')
+  }
+
+  const menuBarHidden = await electronApp.evaluate(({ BrowserWindow }) => {
+    const mainWindow = BrowserWindow.getAllWindows().find((window) =>
+      window.webContents.getURL().endsWith('/index.html')
+    )
+    return mainWindow ? !mainWindow.isMenuBarVisible() : false
+  })
+  if (!menuBarHidden) throw new Error('Native application menu bar is visible')
 
   const displayDiagnostics = await electronApp.evaluate(async ({ desktopCapturer, screen }) => {
     const sources = await desktopCapturer.getSources({
@@ -203,6 +219,38 @@ try {
         throw new Error(`${fixture.name}: at least one image marker has empty bounds`)
       }
 
+      const focusedResultLayout = await page.evaluate(() => {
+        const hero = document.querySelector('.hero')
+        const header = document.querySelector('.header')
+        const details = document.querySelector('#details-panel')
+        const canvas = document.querySelector('#proof-canvas')
+        const bounds = canvas?.getBoundingClientRect()
+        return {
+          resultsMode: document.body.classList.contains('results-mode'),
+          heroDisplay: hero ? getComputedStyle(hero).display : null,
+          headerDisplay: header ? getComputedStyle(header).display : null,
+          detailsDisplay: details ? getComputedStyle(details).display : null,
+          canvasInsideViewport: Boolean(
+            bounds &&
+              bounds.top >= 0 &&
+              bounds.left >= 0 &&
+              bounds.right <= window.innerWidth + 1 &&
+              bounds.bottom <= window.innerHeight + 1
+          )
+        }
+      })
+      if (
+        !focusedResultLayout.resultsMode ||
+        focusedResultLayout.heroDisplay !== 'none' ||
+        focusedResultLayout.headerDisplay !== 'none' ||
+        focusedResultLayout.detailsDisplay !== 'none' ||
+        !focusedResultLayout.canvasInsideViewport
+      ) {
+        throw new Error(
+          `${fixture.name}: focused result layout is invalid: ${JSON.stringify(focusedResultLayout)}`
+        )
+      }
+
       const summary = (await page.locator('#summary-title').textContent())?.trim() ?? ''
       const meta = (await page.locator('#result-meta').textContent())?.trim() ?? ''
       const screenshotPath = join(resultsDirectory, `${fixture.name}-result.png`)
@@ -212,6 +260,7 @@ try {
         expectedIssues: fixture.expectedIssues,
         detectedIssues,
         markerCount: markerData.length,
+        focusedResultLayout,
         summary,
         meta,
         recognizedPreview: recognizedText.slice(0, 180),
@@ -229,6 +278,7 @@ try {
       {
         preloadReady,
         shortcutRegistered,
+        menuBarHidden,
         escapeCancellation: true,
         firstScanMainThreadLatencyMs,
         displayDiagnostics,
