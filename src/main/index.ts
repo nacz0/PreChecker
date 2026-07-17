@@ -13,13 +13,31 @@ const SHORTCUT = 'CommandOrControl+Shift+K'
 let mainWindow: BrowserWindow | null = null
 let selectionWindow: BrowserWindow | null = null
 let spellCheckerClient: SpellCheckerClient | undefined
+let spellCheckerIdleTimer: NodeJS.Timeout | undefined
 let scanInProgress = false
+const SPELL_CHECKER_IDLE_TIMEOUT_MS = 30_000
 
 function ensureSpellChecker(): SpellCheckerClient {
+  if (spellCheckerIdleTimer) {
+    clearTimeout(spellCheckerIdleTimer)
+    spellCheckerIdleTimer = undefined
+  }
   if (!spellCheckerClient) {
     spellCheckerClient = new SpellCheckerClient(join(app.getPath('userData'), 'custom-words.json'))
   }
   return spellCheckerClient
+}
+
+function scheduleSpellCheckerStop(): void {
+  if (!spellCheckerClient) return
+  if (spellCheckerIdleTimer) clearTimeout(spellCheckerIdleTimer)
+  spellCheckerIdleTimer = setTimeout(() => {
+    spellCheckerIdleTimer = undefined
+    const idleChecker = spellCheckerClient
+    spellCheckerClient = undefined
+    if (idleChecker) void idleChecker.stop()
+  }, SPELL_CHECKER_IDLE_TIMEOUT_MS)
+  spellCheckerIdleTimer.unref()
 }
 
 async function getSpellChecker(): Promise<SpellCheckerClient> {
@@ -175,6 +193,7 @@ async function scanWithRegionSelection(
     if (selectionWindow && !selectionWindow.isDestroyed()) selectionWindow.close()
     selectionWindow = null
     scanInProgress = false
+    scheduleSpellCheckerStop()
   }
 }
 
@@ -198,15 +217,16 @@ function requestScan(): void {
 }
 
 app.whenReady().then(() => {
-  void ensureSpellChecker().ready().catch((error) => {
-    console.error('Failed to warm up spell checker:', error)
-  })
   ipcMain.handle('scan-screen', (_event, source: 'button' | 'shortcut' = 'button') =>
     scanWithRegionSelection(source)
   )
   ipcMain.handle('add-to-dictionary', async (_event, word: string) => {
     const checker = await getSpellChecker()
-    await checker.add(word)
+    try {
+      await checker.add(word)
+    } finally {
+      scheduleSpellCheckerStop()
+    }
   })
   ipcMain.handle('get-app-info', () => ({ shortcut: SHORTCUT, platform: process.platform }))
 
@@ -224,6 +244,7 @@ app.on('window-all-closed', () => {
 
 app.on('will-quit', () => {
   globalShortcut.unregisterAll()
+  if (spellCheckerIdleTimer) clearTimeout(spellCheckerIdleTimer)
   void stopScanner()
   void spellCheckerClient?.stop()
 })

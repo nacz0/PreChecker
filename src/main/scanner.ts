@@ -17,6 +17,8 @@ import type {
 } from '../shared/types'
 
 let workerPromise: Promise<Worker> | undefined
+let workerIdleTimer: NodeJS.Timeout | undefined
+const OCR_IDLE_TIMEOUT_MS = 10_000
 
 export type CapturedScreen = {
   image: NativeImage
@@ -38,31 +40,27 @@ function normalizeOcrTokens(text: string): string[] {
   )
 }
 
-function addOcrOccurrences(
-  issues: SpellingIssue[],
-  blocks: Tesseract.Block[] | null
-): SpellingIssue[] {
+function addOcrOccurrences(issues: SpellingIssue[], tsv: string | null): SpellingIssue[] {
   const issuesByWord = new Map(issues.map((issue) => [issue.normalized, issue]))
   for (const issue of issues) issue.occurrences = []
 
-  for (const block of blocks ?? []) {
-    for (const paragraph of block.paragraphs) {
-      for (const line of paragraph.lines) {
-        for (const word of line.words) {
-          for (const token of normalizeOcrTokens(word.text)) {
-            const issue = issuesByWord.get(token)
-            if (!issue) continue
-            const occurrence: TextOccurrence = {
-              x: word.bbox.x0,
-              y: word.bbox.y0,
-              width: word.bbox.x1 - word.bbox.x0,
-              height: word.bbox.y1 - word.bbox.y0,
-              confidence: word.confidence
-            }
-            issue.occurrences?.push(occurrence)
-          }
-        }
-      }
+  for (const row of tsv?.split(/\r?\n/).slice(1) ?? []) {
+    const columns = row.split('\t')
+    if (columns.length < 12 || columns[0] !== '5') continue
+
+    const left = Number(columns[6])
+    const top = Number(columns[7])
+    const width = Number(columns[8])
+    const height = Number(columns[9])
+    const confidence = Number(columns[10])
+    if (![left, top, width, height, confidence].every(Number.isFinite)) continue
+
+    const word = columns.slice(11).join('\t')
+    for (const token of normalizeOcrTokens(word)) {
+      const issue = issuesByWord.get(token)
+      if (!issue) continue
+      const occurrence: TextOccurrence = { x: left, y: top, width, height, confidence }
+      issue.occurrences?.push(occurrence)
     }
   }
 
@@ -82,6 +80,10 @@ function tessdataPath(): string {
 }
 
 async function getWorker(): Promise<Worker> {
+  if (workerIdleTimer) {
+    clearTimeout(workerIdleTimer)
+    workerIdleTimer = undefined
+  }
   if (!workerPromise) {
     workerPromise = createWorker(['pol', 'eng'], OEM.LSTM_ONLY, {
       langPath: tessdataPath(),
@@ -97,6 +99,17 @@ async function getWorker(): Promise<Worker> {
   }
 
   return workerPromise
+}
+
+function scheduleWorkerStop(): void {
+  if (workerIdleTimer) clearTimeout(workerIdleTimer)
+  workerIdleTimer = setTimeout(() => {
+    workerIdleTimer = undefined
+    const idleWorker = workerPromise
+    workerPromise = undefined
+    if (idleWorker) void idleWorker.then((worker) => worker.terminate())
+  }, OCR_IDLE_TIMEOUT_MS)
+  workerIdleTimer.unref()
 }
 
 export async function captureActiveScreen(): Promise<CapturedScreen> {
@@ -150,9 +163,14 @@ export async function scanCapturedRegion(
 
   sendProgress({ status: 'Rozpoznawanie tekstu', progress: 0.05 })
   const [worker, spellChecker] = await Promise.all([getWorker(), getSpellChecker()])
-  const recognition = await worker.recognize(screenshot, {}, { blocks: true })
+  let recognition: Awaited<ReturnType<Worker['recognize']>>
+  try {
+    recognition = await worker.recognize(screenshot, {}, { tsv: true })
+  } finally {
+    scheduleWorkerStop()
+  }
   const text = recognition.data.text.trim()
-  const issues = addOcrOccurrences(await spellChecker.check(text), recognition.data.blocks)
+  const issues = addOcrOccurrences(await spellChecker.check(text), recognition.data.tsv)
 
   sendProgress({ status: 'Gotowe', progress: 1 })
   return {
@@ -170,8 +188,13 @@ export async function scanCapturedRegion(
 }
 
 export async function stopScanner(): Promise<void> {
+  if (workerIdleTimer) {
+    clearTimeout(workerIdleTimer)
+    workerIdleTimer = undefined
+  }
   if (!workerPromise) return
-  const worker = await workerPromise
-  await worker.terminate()
+  const activeWorker = workerPromise
   workerPromise = undefined
+  const worker = await activeWorker
+  await worker.terminate()
 }
